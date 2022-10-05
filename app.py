@@ -7,16 +7,14 @@ import time
 import unicodedata
 import urllib
 import requests
+import sys
+
 
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.keys import Keys
-
-try:
-    from config import PINTEREST_PASSWORD, PINTEREST_USERNAME, QUERY_PARAM
-except Exception as e:
-    print(e)
-
 
 def randdelay(a, b):
     time.sleep(random.uniform(a, b))
@@ -36,8 +34,9 @@ class PinterestDownloader():
             handler.write(img_data)
 
 class PinterestHelper(object):
-    def __init__(self, email, pw, url, threshold=50):
-        self.browser = webdriver.Firefox(executable_path='/usr/bin/geckodriver')
+    def __init__(self, url, threshold=10):
+        options = Options()
+        self.browser = webdriver.Firefox(executable_path='/usr/bin/geckodriver', options=options)
         # self.login(email, pw)
         self.images = []
         tries = 0
@@ -46,17 +45,6 @@ class PinterestHelper(object):
             self.images = self.process_images(tries, threshold)
         except (socket.error, socket.timeout):
             pass
-
-    def login(self, email, pw):
-        self.browser.get("https://www.pinterest.com")
-        login = self.browser.find_element_by_xpath('/html/body/div[1]/div[1]/div/div/div/div[1]/div[1]/div[2]/div[2]/button/div')
-        login.click()
-        email_elem = self.browser.find_element_by_xpath('//*[@id="email"]')
-        email_elem.send_keys(email)
-        password_elem = self.browser.find_element_by_name('password')
-        password_elem.send_keys(pw)
-        password_elem.send_keys(Keys.RETURN)
-        randdelay(2, 4)
 
     def close(self):
         """ Closes the browser """
@@ -67,7 +55,7 @@ class PinterestHelper(object):
         while threshold > 0:
             print(f'Processing {tries}')
             try:
-                images = self.browser.find_elements_by_tag_name("img")
+                images = self.browser.find_elements(By.TAG_NAME, "img")
                 if tries > threshold - 1:
                     return results
                 for i in images:
@@ -78,7 +66,7 @@ class PinterestHelper(object):
                             src = src.replace("/236x/", "/736x/")
                             src = src.replace("/474x/", "/736x/")
                             results.append(u_to_s(src))
-                body = self.browser.find_element_by_xpath('/html/body')
+                body = self.browser.find_element(By.XPATH,'/html/body')
                 body.send_keys(Keys.PAGE_DOWN)
                 randdelay(0, 1)
                 tries+=1
@@ -108,10 +96,19 @@ class PinterestHelper(object):
         print(f'Saved {len(images)} images')
 
 def main():
-    term = QUERY_PARAM
-    ph = PinterestHelper(PINTEREST_USERNAME, PINTEREST_PASSWORD, 'http://pinterest.com/search/pins/?q=' + urllib.parse.quote(term), 1)
-    ph.write_results(term, ph.images)
-    ph.close()
+    args = sys.argv
+    if(len(args) > 1):
+        term = args[1]
+        limit = 10
+        try:
+            limit = args[2]
+        except IndexError:
+            print(f'No limit passed. Defaulting to 10')
+        ph = PinterestHelper('http://pinterest.com/search/pins/?q=' + urllib.parse.quote(term), limit)
+        ph.write_results(term, ph.images)
+        ph.close()
+    else:
+        print(f'Parameters passed are wrong. Please check')
 
 
 
